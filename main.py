@@ -8,25 +8,16 @@ import win32api
 
 MPV_PATH = r"C:\Users\GodY\source\dynamicWallpaper\mpv.exe"
 
-VIDEO_PATH = r"C:\Users\GodY\OneDrive\Videos\LiveWallpaper\68c4f94992d000f8170d0804\1756865729049_rbYQT.mp4"
+VIDEO_1 = r"C:\Users\GodY\OneDrive\Videos\LiveWallpaper\68c4f94992d000f8170d0804\1756865729049_rbYQT.mp4"  # 屏幕1的视频
+VIDEO_2 = r"C:\Users\GodY\OneDrive\Videos\LiveWallpaper\6830aff9e0666a85c1287e9f\1744473562760_0vR-m.mp4"  # 屏幕2的视频
 
 
 def get_desktop_workerw():
-    """
-    根据你机器实际情况获取桌面 WorkerW
-
-    Progman
-      ├─ SHELLDLL_DefView
-      └─ WorkerW  <-- 目标
-    """
 
     progman = win32gui.FindWindow(
         "Progman",
         "Program Manager"
     )
-
-    if not progman:
-        return 0
 
     workerw = win32gui.FindWindowEx(
         progman,
@@ -35,10 +26,29 @@ def get_desktop_workerw():
         None
     )
 
-    if workerw:
-        return workerw
+    return workerw
 
-    return progman
+
+def get_monitors():
+
+    monitors = []
+
+    for monitor in win32api.EnumDisplayMonitors():
+
+        _, _, rect = monitor
+
+        left, top, right, bottom = rect
+
+        monitors.append({
+            "x": left,
+            "y": top,
+            "width": right - left,
+            "height": bottom - top
+        })
+
+    monitors.sort(key=lambda m: m["x"])
+
+    return monitors
 
 
 def find_window(title, timeout=15):
@@ -47,48 +57,35 @@ def find_window(title, timeout=15):
 
     while time.time() - start < timeout:
 
-        result = []
+        found = []
 
         def enum_callback(hwnd, _):
 
             text = win32gui.GetWindowText(hwnd)
 
             if title in text:
-                result.append(hwnd)
+                found.append(hwnd)
 
         win32gui.EnumWindows(enum_callback, None)
 
-        if result:
-            return result[0]
+        if found:
+            return found[0]
 
         time.sleep(0.2)
 
     return None
 
 
-def main():
-
-    if not os.path.exists(MPV_PATH):
-        print("mpv不存在")
-        return
-
-    if not os.path.exists(VIDEO_PATH):
-        print("视频不存在")
-        return
-
-    workerw = get_desktop_workerw()
-
-    print("workerw =", workerw)
-
-    if not workerw:
-        print("获取WorkerW失败")
-        return
-
-    title = "MY_WALLPAPER_TEST"
+def start_wallpaper(
+    video_path,
+    title,
+    workerw,
+    monitor
+):
 
     cmd = [
         MPV_PATH,
-        VIDEO_PATH,
+        video_path,
 
         "--force-window=yes",
         "--no-border",
@@ -105,22 +102,14 @@ def main():
         f"--title={title}",
     ]
 
-    print("启动 mpv...")
-
     subprocess.Popen(cmd)
 
     hwnd = find_window(title)
 
-    print("mpv hwnd =", hwnd)
-
     if not hwnd:
-        print("找不到 mpv 窗口")
+        print("找不到窗口:", title)
         return
 
-    print("原始 parent =", win32gui.GetParent(hwnd))
-    print("原始 rect =", win32gui.GetWindowRect(hwnd))
-
-    # 修改窗口样式
     style = win32gui.GetWindowLong(
         hwnd,
         win32con.GWL_STYLE
@@ -135,38 +124,79 @@ def main():
         style
     )
 
-    # 挂到桌面
     win32gui.SetParent(
         hwnd,
         workerw
     )
 
-    print("新 parent =", win32gui.GetParent(hwnd))
+    worker_rect = win32gui.GetWindowRect(workerw)
 
-    # 获取主显示器尺寸
-    width = win32api.GetSystemMetrics(0)
-    height = win32api.GetSystemMetrics(1)
+    worker_x = worker_rect[0]
+    worker_y = worker_rect[1]
+
+    local_x = monitor["x"] - worker_x
+    local_y = monitor["y"] - worker_y
+
+    print("worker_rect =", worker_rect)
+    print("local =", local_x, local_y)
 
     win32gui.SetWindowPos(
-        hwnd,
-        win32con.HWND_BOTTOM,
-        0,
-        0,
-        width,
-        height,
-        win32con.SWP_SHOWWINDOW
-        | win32con.SWP_FRAMECHANGED
-    )
+    hwnd,
+    win32con.HWND_BOTTOM,
+
+    local_x,
+    local_y,
+
+    monitor["width"],
+    monitor["height"],
+
+    win32con.SWP_SHOWWINDOW
+    | win32con.SWP_FRAMECHANGED
+)
 
     win32gui.ShowWindow(
         hwnd,
         win32con.SW_SHOW
     )
 
-    win32gui.UpdateWindow(hwnd)
+    rect = win32gui.GetWindowRect(hwnd)
 
-    print("完成")
-    print("如果成功，现在应该能看到视频在桌面图标下面播放")
+    print(title)
+    print("monitor =", monitor)
+    print("actual rect =", rect)
+
+
+def main():
+
+    workerw = get_desktop_workerw()
+
+    print("workerw =", workerw)
+
+    monitors = get_monitors()
+
+    print("monitors =", monitors)
+
+    if len(monitors) < 2:
+        print("检测不到双屏")
+        return
+
+    # 左边屏幕
+    start_wallpaper(
+        VIDEO_1,
+        "WALL_LEFT",
+        workerw,
+        monitors[0]
+    )
+
+    time.sleep(1)
+
+    # 右边屏幕
+    start_wallpaper(
+        VIDEO_2,
+        "WALL_RIGHT",
+        workerw,
+        monitors[1]
+    )
 
     while True:
         time.sleep(1)
