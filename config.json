@@ -1,0 +1,17 @@
+{
+  "mpv_path": "mpv.exe",
+  "monitors": {
+    "left": {
+      "enable": true,
+      "video_path": "LiveWallpaper/giantapp_1780526782077.mp4",
+      "speed": 1.0,
+      "mute": true
+    },
+    "right": {
+      "enable": true,
+      "video_path": "LiveWallpaper/giantapp_1780526782077.mp4",
+      "speed": 0.1,
+      "mute": false
+    }
+  }
+}
